@@ -1,42 +1,48 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "react-query";
-import { fetchTodos, createTodo, deleteTodo, updateTodo } from "../../api/todoApi";
-import { Task } from "../Task/Task";
-import { TaskType } from "./TaskList.types";
-import rubish from "../../assets/rubish.png";
-import plus from "../../assets/plus.png";
-import "../../App.scss";
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { fetchTodos, createTodo, deleteTodo, updateTodo } from '../../api/todoApi';
+import { Task } from '../Task/Task';
+import { TaskType } from './TaskList.types';
+import WebSocketClient from '../../api/websocketClient';
+import rubish from '../../assets/rubish.png';
+import plus from '../../assets/plus.png';
+import '../../App.scss';
 
 export const TaskList = () => {
   const queryClient = useQueryClient();
-  const [newTask, setNewTask] = useState("");
- 
-  const {
-    data: todos,
-    isLoading,
-    error,
-  } = useQuery<TaskType[]>("todos", fetchTodos);
+  const [newTask, setNewTask] = useState('');
+
+  useEffect(() => {
+    const wsClient = new WebSocketClient('ws://localhost:3000', queryClient);
+
+    return () => {
+      // Очистка соединения при размонтировании компонента
+      wsClient.getSocket().close();
+    };
+  }, [queryClient]);
+
+  const { data: todos, isLoading, error } = useQuery<TaskType[]>('todos', fetchTodos);
 
   const createMutation = useMutation(createTodo, {
-    onSuccess: () => queryClient.invalidateQueries("todos"),
+    onSuccess: () => queryClient.invalidateQueries('todos'),
   });
 
   const deleteMutation = useMutation((id: number) => deleteTodo(id), {
-    onSuccess: () => queryClient.invalidateQueries("todos"),
+    onSuccess: () => queryClient.invalidateQueries('todos'),
   });
 
   const updateMutation = useMutation(
     (updatedTask: { id: number; title: string; completed: boolean }) =>
       updateTodo(updatedTask.id, updatedTask),
     {
-      onSuccess: () => queryClient.invalidateQueries("todos"),
+      onSuccess: () => queryClient.invalidateQueries('todos'),
     }
   );
 
   const handleCreateTask = () => {
     if (newTask.trim()) {
       createMutation.mutate({ title: newTask, completed: false });
-      setNewTask("");
+      setNewTask('');
     }
   };
 
@@ -58,14 +64,14 @@ export const TaskList = () => {
     deleteMutation.mutate(id);
   };
 
- const handleClearAllTasks = async () => {
-  if (todos) {
-    for (const task of todos) {
-      await deleteMutation.mutateAsync(task.id);
+  const handleClearAllTasks = async () => {
+    if (todos) {
+      for (const task of todos) {
+        await deleteMutation.mutateAsync(task.id);
+      }
+      queryClient.invalidateQueries('todos');
     }
-    queryClient.invalidateQueries("todos");
-  }
-};
+  };
 
   if (isLoading) return <p>Loading...</p>;
   if (error) return <p>Error loading tasks</p>;
